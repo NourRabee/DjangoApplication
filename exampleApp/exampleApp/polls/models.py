@@ -1,5 +1,3 @@
-from _ast import Store
-
 from django.db import models
 
 

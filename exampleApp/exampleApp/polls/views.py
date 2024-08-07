@@ -1,94 +1,102 @@
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+from rest_framework import status, serializers
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 
 from .models import *
 import json
-from django.core import serializers
 
 
-@csrf_exempt
+class ProductSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = ['id', 'name', 'category', 'model_year', 'list_price']
+
+
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = ['id', 'name']
+
+
+@api_view(["POST"])
 def add_product_to_brand(request, brand_id):
-    if request.method == 'POST':
-        try:
+    try:
+        Brand.objects.get(id=brand_id)
+    except Brand.DoesNotExist:
+        return JsonResponse({'error': 'brand not found'}, status=status.HTTP_404_NOT_FOUND)
 
-            brand = Brand.objects.get(id=brand_id)
+    data = json.loads(request.body)
+    category_id = data.get('category')
 
-        except Brand.DoesNotExist:
-            return JsonResponse({'error': 'brand not found'}, status=404)
+    try:
+        Category.objects.get(id=category_id)
+    except Category.DoesNotExist:
+        return Response({'error': 'brand not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        data = json.loads(request.body)
-        category_id = data.get('category_id')
-
-        if not category_id:
-            return JsonResponse({'error': 'This category does not exist!'}, status=400)
-
-        product = Product(name=data['name'], category_id=category_id, list_price=data['list_price'],
-                          model_year=data['model_year'], brand=brand)
-        product.save()
-
-        data = serializers.serialize("json", [product])
-
-        return JsonResponse({"data": json.loads(data)}, status=201)
+    serializer = ProductSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.validated_data['brand_id'] = brand_id
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@api_view(["GET"])
 def get_categories_of_certain_store(request, store_id):
-    if request.method == 'GET':
-        try:
+    try:
 
-            Store.objects.get(id=store_id)
+        Store.objects.get(id=store_id)
 
-        except Store.DoesNotExist:
-            return JsonResponse({'error': 'Store not found'}, status=404)
+    except Store.DoesNotExist:
+        return JsonResponse({'error': 'Store not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        categories = Category.objects.filter(
-            product__storeproduct__store_id=store_id
-        ).distinct()
+    categories = Category.objects.filter(
+        product__storeproduct__store_id=store_id
+    ).distinct()
 
-        data = serializers.serialize("json", categories)
+    serializer = CategorySerializer(categories, many=True)
 
-        return JsonResponse({"data": json.loads(data)})
+    return Response(serializer.data)
 
 
+@api_view(["GET"])
 def get_categories(request):
-    if request.method == "GET":
-        categories = Category.objects.all()
-        data = serializers.serialize("json", categories)
-        return JsonResponse({"data": json.loads(data)})
+    categories = Category.objects.all()
+    serializer = CategorySerializer(categories, many=True)
+    return Response(serializer.data)
 
 
+@api_view(["GET"])
 def get_products_of_certain_store(request, store_id):
-    if request.method == 'GET':
+    try:
 
-        try:
+        Store.objects.get(id=store_id)
 
-            Store.objects.get(id=store_id)
+    except Store.DoesNotExist:
+        return Response({'error': 'Store not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        except Store.DoesNotExist:
-            return JsonResponse({'error': 'Store not found'}, status=404)
+    products = Product.objects.filter(
+        storeproduct__store_id=store_id
+    )
 
-        products = Product.objects.filter(
-            storeproduct__store_id=store_id
-        )
+    serializer = ProductSerializer(products, many=True)
 
-        data = serializers.serialize("json", products)
-
-        return JsonResponse({"data": json.loads(data)})
+    return Response(serializer.data)
 
 
-@csrf_exempt
+@api_view(["DELETE"])
 def delete_product_from_store(request, store_id, product_id):
-    if request.method == 'DELETE':
+    try:
 
-        try:
+        Store.objects.get(id=store_id)
+        Product.objects.get(id=product_id)
 
-            Store.objects.get(id=store_id)
-            Product.objects.get(id=product_id)
+    except Store.DoesNotExist or Product.DoesNotExist:
+        return Response({'error': 'Store or Product does not exist!'}, status=status.HTTP_404_NOT_FOUND)
 
-        except Store.DoesNotExist or Product.DoesNotExist:
-            return JsonResponse({'error': 'Store or Product does not exist!'}, status=404)
+    product = Product.objects.get(id=product_id, storeproduct__store_id=store_id)
 
-        product = Product.objects.get(id=product_id, storeproduct__store_id=store_id)
+    product.delete()
 
-        product.delete()
-
-        return JsonResponse({'message': 'Products successfully deleted'}, status=204)
+    return Response({'message': 'Products successfully deleted'}, status=status.HTTP_204_NO_CONTENT)
