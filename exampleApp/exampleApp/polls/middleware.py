@@ -3,6 +3,9 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.contrib import messages
 
 
+# https://python-code.dev/articles/144154532
+
+
 class GlobalExceptionsHandler:
     """Handle uncaught exceptions instead of raising a 404."""
 

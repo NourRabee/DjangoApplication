@@ -1,10 +1,23 @@
-from django.http import JsonResponse
+from django.core.paginator import Paginator
 from rest_framework import status, serializers
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .models import *
 import json
+
+
+def custom_paginator(contact_list, page_number, page_size):
+    if page_number is None:
+        page_number = 1
+
+    if page_size is None:
+        page_size = 2
+
+    paginator = Paginator(contact_list, page_size)
+    page_obj = paginator.get_page(page_number)
+
+    return page_obj
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -45,7 +58,11 @@ def get_categories_of_certain_store(request, store_id):
         product__storeproduct__store_id=store_id
     ).distinct()
 
-    serializer = CategorySerializer(categories, many=True)
+    # # Get the page number from the request
+    page_number = request.GET.get('page')
+    per_page = request.GET.get('page_size')
+
+    serializer = CategorySerializer(custom_paginator(categories, page_number, per_page), many=True)
 
     return Response(serializer.data)
 
@@ -53,7 +70,13 @@ def get_categories_of_certain_store(request, store_id):
 @api_view(["GET"])
 def get_categories(request):
     categories = Category.objects.all()
-    serializer = CategorySerializer(categories, many=True)
+
+    # Get the page number from the request
+    page_number = request.GET.get('page')
+    per_page = request.GET.get('page_size')
+
+    serializer = CategorySerializer(custom_paginator(categories, page_number, per_page), many=True)
+
     return Response(serializer.data)
 
 
@@ -65,7 +88,10 @@ def get_products_of_certain_store(request, store_id):
         storeproduct__store_id=store_id
     )
 
-    serializer = ProductSerializer(products, many=True)
+    page_number = request.GET.get('page')
+    per_page = request.GET.get('page_size')
+
+    serializer = CategorySerializer(custom_paginator(products, page_number, per_page), many=True)
 
     return Response(serializer.data)
 
