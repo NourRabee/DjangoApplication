@@ -32,7 +32,37 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 
-@api_view(["POST"])
+class StoreSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Store
+        fields = ['id', 'name', 'phone', 'email', 'street', 'city', 'state', 'zip_code']
+
+
+class ProductDetailSerializer(serializers.ModelSerializer):
+    category = CategorySerializer()
+    store = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = ['id', 'name', 'brand', 'category', 'model_year', 'list_price', 'store']
+
+    def get_store(self, obj):
+        # Get all StoreProduct entries related to the given product
+        store_products = StoreProduct.objects.filter(product=obj).select_related('store')
+
+        serialized_stores = []
+
+        for store_product in store_products:
+            store_data = StoreSerializer(store_product.store).data
+
+            serialized_stores.append({
+                'store': store_data
+            })
+
+        return serialized_stores
+
+
+@api_view(["POST", "PUT"])
 def add_product_to_brand(request, brand_id):
     Brand.objects.get(id=brand_id)
     data = json.loads(request.body)
@@ -40,14 +70,30 @@ def add_product_to_brand(request, brand_id):
     category_id = data.get('category')
     Category.objects.get(id=category_id)
 
-    serializer = ProductSerializer(data=request.data)
+    if request.method == 'POST':
 
-    if serializer.is_valid():
-        serializer.validated_data['brand_id'] = brand_id
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        serializer = ProductSerializer(data=request.data)
 
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        if serializer.is_valid():
+            serializer.validated_data['brand_id'] = brand_id
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'PUT':
+
+        product_id = request.GET.get('product_id')
+
+        product = Product.objects.get(id=product_id)
+
+        serializer = ProductSerializer(product, data=request.data, partial=True)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["GET"])
@@ -106,3 +152,24 @@ def delete_product_from_store(request, store_id, product_id):
     product.delete()
 
     return Response({'message': 'Products successfully deleted'}, status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(["GET"])
+def get_products_details(request):
+    store_id = request.GET.get('store_id')
+    category_id = request.GET.get('category_id')
+
+    products = Product.objects.all()
+
+    if store_id:
+        products = products.filter(storeproduct__store_id=store_id)
+
+    if category_id:
+        products = products.filter(category_id=category_id)
+
+    page_number = request.GET.get('page')
+    per_page = request.GET.get('page_size')
+
+    serializer = ProductDetailSerializer(custom_paginator(products, page_number, per_page), many=True)
+
+    return Response(serializer.data)
