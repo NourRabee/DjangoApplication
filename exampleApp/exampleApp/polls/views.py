@@ -32,7 +32,7 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 
-@api_view(["POST"])
+@api_view(["POST", "PUT"])
 def add_product_to_brand(request, brand_id):
     Brand.objects.get(id=brand_id)
     data = json.loads(request.body)
@@ -40,14 +40,30 @@ def add_product_to_brand(request, brand_id):
     category_id = data.get('category')
     Category.objects.get(id=category_id)
 
-    serializer = ProductSerializer(data=request.data)
+    if request.method == 'POST':
 
-    if serializer.is_valid():
-        serializer.validated_data['brand_id'] = brand_id
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        serializer = ProductSerializer(data=request.data)
 
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        if serializer.is_valid():
+            serializer.validated_data['brand_id'] = brand_id
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'PUT':
+
+        product_id = request.GET.get('product_id')
+
+        product = Product.objects.get(id=product_id)
+
+        serializer = ProductSerializer(product, data=request.data, partial=True)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["GET"])

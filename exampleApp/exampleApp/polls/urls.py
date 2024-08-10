@@ -4,7 +4,7 @@ from debug_toolbar.toolbar import debug_toolbar_urls
 from . import views
 
 urlpatterns = [
-    # The ability to add products to a certain brand
+    # The ability to add a products to a certain brand
     # post api/brands/{brand_id}/products
     path('brands/<int:brand_id>/products', views.add_product_to_brand),
 
