@@ -1,10 +1,11 @@
 from django.core.paginator import Paginator
 from rest_framework import status, serializers
 from rest_framework.decorators import api_view
+from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.response import Response
-
-from .models import *
 import json
+
+from .serializers import *
 
 
 def custom_paginator(contact_list, page_number, page_size):
@@ -18,48 +19,6 @@ def custom_paginator(contact_list, page_number, page_size):
     page_obj = paginator.get_page(page_number)
 
     return page_obj
-
-
-class ProductSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Product
-        fields = ['id', 'name', 'category', 'model_year', 'list_price']
-
-
-class CategorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Product
-        fields = ['id', 'name']
-
-
-class StoreSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Store
-        fields = ['id', 'name', 'phone', 'email', 'street', 'city', 'state', 'zip_code']
-
-
-class ProductDetailSerializer(serializers.ModelSerializer):
-    category = CategorySerializer()
-    store = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Product
-        fields = ['id', 'name', 'brand', 'category', 'model_year', 'list_price', 'store']
-
-    def get_store(self, obj):
-        # Get all StoreProduct entries related to the given product
-        store_products = StoreProduct.objects.filter(product=obj).select_related('store')
-
-        serialized_stores = []
-
-        for store_product in store_products:
-            store_data = StoreSerializer(store_product.store).data
-
-            serialized_stores.append({
-                'store': store_data
-            })
-
-        return serialized_stores
 
 
 @api_view(["POST"])
@@ -164,7 +123,7 @@ def get_products_details(request):
     store_id = request.GET.get('store_id')
     category_id = request.GET.get('category_id')
 
-    products = Product.objects.all()
+    products = Product.objects.all().values('id', 'name', 'brand', 'category', 'model_year')
 
     if store_id:
         products = products.filter(storeproduct__store_id=store_id)
@@ -172,9 +131,23 @@ def get_products_details(request):
     if category_id:
         products = products.filter(category_id=category_id)
 
-    page_number = request.GET.get('page')
-    per_page = request.GET.get('page_size')
+    paginator = LimitOffsetPagination()
 
-    serializer = ProductDetailSerializer(custom_paginator(products, page_number, per_page), many=True)
+    paginated_products = paginator.paginate_queryset(products, request)
+
+    product_objects = [ProductFromDictSerializer().create(product_dict) for product_dict in paginated_products]
+
+    # products = [
+    #     Product(
+    #         id=product_dict['id'],
+    #         name=product_dict['name'],
+    #         brand_id=product_dict['brand'],
+    #         category_id=product_dict['category'],
+    #         model_year=product_dict['model_year'],
+    #     )
+    #     for product_dict in products
+    # ]
+
+    serializer = ProductDetailSerializer(product_objects, many=True)
 
     return Response(serializer.data)
