@@ -62,7 +62,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         return serialized_stores
 
 
-@api_view(["POST", "PUT"])
+@api_view(["POST"])
 def add_product_to_brand(request, brand_id):
     Brand.objects.get(id=brand_id)
     data = json.loads(request.body)
@@ -70,30 +70,35 @@ def add_product_to_brand(request, brand_id):
     category_id = data.get('category')
     Category.objects.get(id=category_id)
 
-    if request.method == 'POST':
+    serializer = ProductSerializer(data=request.data)
 
-        serializer = ProductSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.validated_data['brand_id'] = brand_id
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-        if serializer.is_valid():
-            serializer.validated_data['brand_id'] = brand_id
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    elif request.method == 'PUT':
+@api_view(["PUT"])
+def edit_product_of_brand(request, brand_id):
+    Brand.objects.get(id=brand_id)
+    data = json.loads(request.body)
 
-        product_id = request.GET.get('product_id')
+    category_id = data.get('category')
+    Category.objects.get(id=category_id)
 
-        product = Product.objects.get(id=product_id)
+    product_id = request.GET.get('product_id')
 
-        serializer = ProductSerializer(product, data=request.data, partial=True)
+    product = Product.objects.get(id=product_id)
 
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
+    serializer = ProductSerializer(product, data=request.data, partial=True)
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["GET"])
