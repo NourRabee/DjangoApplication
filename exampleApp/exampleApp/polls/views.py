@@ -123,7 +123,7 @@ def get_products_details(request):
     store_id = request.GET.get('store_id')
     category_id = request.GET.get('category_id')
 
-    products = Product.objects.all().values('id', 'name', 'brand', 'category', 'model_year')
+    products = Product.objects.all().only('id', 'name', 'brand', 'category', 'model_year')
 
     if store_id:
         products = products.filter(storeproduct__store_id=store_id)
@@ -135,19 +135,6 @@ def get_products_details(request):
 
     paginated_products = paginator.paginate_queryset(products, request)
 
-    product_objects = [ProductFromDictSerializer().create(product_dict) for product_dict in paginated_products]
-
-    # products = [
-    #     Product(
-    #         id=product_dict['id'],
-    #         name=product_dict['name'],
-    #         brand_id=product_dict['brand'],
-    #         category_id=product_dict['category'],
-    #         model_year=product_dict['model_year'],
-    #     )
-    #     for product_dict in products
-    # ]
-
-    serializer = ProductDetailSerializer(product_objects, many=True)
+    serializer = ProductDetailSerializer(paginated_products, many=True)
 
     return Response(serializer.data)

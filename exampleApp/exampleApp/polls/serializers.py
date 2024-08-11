@@ -30,7 +30,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'brand', 'category', 'model_year', 'store']
 
     def get_store(self, obj):
-        # Get all StoreProduct entries related to the given product
+
         store_products = StoreProduct.objects.filter(product=obj).select_related('store')
 
         serialized_stores = []
@@ -43,20 +43,3 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             })
 
         return serialized_stores
-
-
-class ProductFromDictSerializer(serializers.Serializer):
-    id = serializers.IntegerField()
-    name = serializers.CharField()
-    brand = serializers.IntegerField()
-    category = serializers.IntegerField()
-    model_year = serializers.IntegerField()
-
-    def create(self, validated_data):
-        return Product(
-            id=validated_data['id'],
-            name=validated_data['name'],
-            brand_id=validated_data['brand'],
-            category_id=validated_data['category'],
-            model_year=validated_data['model_year']
-        )
