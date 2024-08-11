@@ -1,10 +1,11 @@
 from django.core.paginator import Paginator
 from rest_framework import status, serializers
 from rest_framework.decorators import api_view
+from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.response import Response
-
-from .models import *
 import json
+
+from .serializers import *
 
 
 def custom_paginator(contact_list, page_number, page_size):
@@ -20,49 +21,7 @@ def custom_paginator(contact_list, page_number, page_size):
     return page_obj
 
 
-class ProductSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Product
-        fields = ['id', 'name', 'category', 'model_year', 'list_price']
-
-
-class CategorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Product
-        fields = ['id', 'name']
-
-
-class StoreSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Store
-        fields = ['id', 'name', 'phone', 'email', 'street', 'city', 'state', 'zip_code']
-
-
-class ProductDetailSerializer(serializers.ModelSerializer):
-    category = CategorySerializer()
-    store = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Product
-        fields = ['id', 'name', 'brand', 'category', 'model_year', 'list_price', 'store']
-
-    def get_store(self, obj):
-        # Get all StoreProduct entries related to the given product
-        store_products = StoreProduct.objects.filter(product=obj).select_related('store')
-
-        serialized_stores = []
-
-        for store_product in store_products:
-            store_data = StoreSerializer(store_product.store).data
-
-            serialized_stores.append({
-                'store': store_data
-            })
-
-        return serialized_stores
-
-
-@api_view(["POST", "PUT"])
+@api_view(["POST"])
 def add_product_to_brand(request, brand_id):
     Brand.objects.get(id=brand_id)
     data = json.loads(request.body)
@@ -70,30 +29,35 @@ def add_product_to_brand(request, brand_id):
     category_id = data.get('category')
     Category.objects.get(id=category_id)
 
-    if request.method == 'POST':
+    serializer = ProductSerializer(data=request.data)
 
-        serializer = ProductSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.validated_data['brand_id'] = brand_id
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-        if serializer.is_valid():
-            serializer.validated_data['brand_id'] = brand_id
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    elif request.method == 'PUT':
+@api_view(["PUT"])
+def edit_product_of_brand(request, brand_id):
+    Brand.objects.get(id=brand_id)
+    data = json.loads(request.body)
 
-        product_id = request.GET.get('product_id')
+    category_id = data.get('category')
+    Category.objects.get(id=category_id)
 
-        product = Product.objects.get(id=product_id)
+    product_id = request.GET.get('product_id')
 
-        serializer = ProductSerializer(product, data=request.data, partial=True)
+    product = Product.objects.get(id=product_id)
 
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
+    serializer = ProductSerializer(product, data=request.data, partial=True)
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["GET"])
@@ -159,7 +123,7 @@ def get_products_details(request):
     store_id = request.GET.get('store_id')
     category_id = request.GET.get('category_id')
 
-    products = Product.objects.all()
+    products = Product.objects.all().only('id', 'name', 'brand', 'category', 'model_year')
 
     if store_id:
         products = products.filter(storeproduct__store_id=store_id)
@@ -167,9 +131,10 @@ def get_products_details(request):
     if category_id:
         products = products.filter(category_id=category_id)
 
-    page_number = request.GET.get('page')
-    per_page = request.GET.get('page_size')
+    paginator = LimitOffsetPagination()
 
-    serializer = ProductDetailSerializer(custom_paginator(products, page_number, per_page), many=True)
+    paginated_products = paginator.paginate_queryset(products, request)
+
+    serializer = ProductDetailSerializer(paginated_products, many=True)
 
     return Response(serializer.data)
