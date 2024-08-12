@@ -1,5 +1,5 @@
 from django.core.paginator import Paginator
-from rest_framework import status, serializers
+from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.response import Response
@@ -68,7 +68,6 @@ def get_categories_of_certain_store(request, store_id):
         product__storeproduct__store_id=store_id
     ).distinct()
 
-    # # Get the page number from the request
     page_number = request.GET.get('page')
     per_page = request.GET.get('page_size')
 
@@ -81,7 +80,6 @@ def get_categories_of_certain_store(request, store_id):
 def get_categories(request):
     categories = Category.objects.all()
 
-    # Get the page number from the request
     page_number = request.GET.get('page')
     per_page = request.GET.get('page_size')
 
